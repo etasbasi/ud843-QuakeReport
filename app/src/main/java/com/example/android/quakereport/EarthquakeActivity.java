@@ -19,8 +19,11 @@ import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
+import android.widget.SimpleAdapter;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 
 public class EarthquakeActivity extends AppCompatActivity {
 
@@ -32,24 +35,44 @@ public class EarthquakeActivity extends AppCompatActivity {
         setContentView(R.layout.earthquake_activity);
 
         // Create a fake list of earthquake locations.
-        ArrayList<String> earthquakes = new ArrayList<>();
-        earthquakes.add("San Francisco");
-        earthquakes.add("London");
-        earthquakes.add("Tokyo");
-        earthquakes.add("Mexico City");
-        earthquakes.add("Moscow");
-        earthquakes.add("Rio de Janeiro");
-        earthquakes.add("Paris");
+//        ArrayList<Earthquake> earthquakes = new ArrayList<>();
+//        earthquakes.add(new Earthquake("5.5", "London", "January"));
+//        earthquakes.add(new Earthquake("2.4", "Khartoum", "October"));
+//        earthquakes.add(new Earthquake("4.0", "Paris", "21, December"));
+//        earthquakes.add(new Earthquake("3.0", "Khartoum", "November"));
+
+        ArrayList<Earthquake> earthquakes = QueryUtils.extractEarthquakes();
 
         // Find a reference to the {@link ListView} in the layout
         ListView earthquakeListView = (ListView) findViewById(R.id.list);
 
-        // Create a new {@link ArrayAdapter} of earthquakes
-        ArrayAdapter<String> adapter = new ArrayAdapter<String>(
-                this, android.R.layout.simple_list_item_1, earthquakes);
+        EarthquakeAdapter adapter = new EarthquakeAdapter(this, earthquakes);
 
-        // Set the adapter on the {@link ListView}
-        // so the list can be populated in the user interface
         earthquakeListView.setAdapter(adapter);
+
+
+
+//        String[] mag = new String[] { "2.0", "3.2", "8.3", "4.2", "8.3", "1.2", "6.7", "5.9" };
+//        String[] loc = new String[] { "Virginia", "Long Island", "New York", "California", "Ohio", "Istanbul", "Khartoum", "Spain"};
+//        String[] time = new String[] { "12:00", "6:00", "2:23", "9:84", "10:43", "2:04", "0:00", "6:93" };
+//
+//        String[] from = new String[] { "mag", "loc", "time" };
+//        int[] to = new int[] {R.id.mag, R.id.loc, R.id.time };
+//
+//        List<HashMap<String, Object>> fillMaps = new ArrayList<HashMap<String, Object>>();
+//
+//        for(int i = 0; i < 8; i++) {
+//            HashMap<String, Object> map = new HashMap<String, Object>();
+//            map.put("mag", mag[i]);
+//            map.put("loc", loc[i]);
+//            map.put("time", time[i]);
+//            fillMaps.add(map);
+//        }
+//
+//
+//        SimpleAdapter adapter = new SimpleAdapter(this, fillMaps, R.layout.row, from, to);
+//        earthquakeListView.setAdapter(adapter);
+
+
     }
 }
