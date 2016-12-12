@@ -15,64 +15,172 @@
  */
 package com.example.android.quakereport;
 
+import android.app.Activity;
+import android.app.LoaderManager;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.support.v7.app.AppCompatActivity;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
+import android.widget.ProgressBar;
 import android.widget.SimpleAdapter;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-public class EarthquakeActivity extends AppCompatActivity {
+import android.app.LoaderManager;
+import android.app.LoaderManager.LoaderCallbacks;
+import android.content.Loader;
+import android.widget.TextView;
+
+public class EarthquakeActivity extends AppCompatActivity implements LoaderCallbacks<List<Earthquake>> {
 
     public static final String LOG_TAG = EarthquakeActivity.class.getName();
+
+    private static final int EARTHQUAKE_LOADER_ID = 1;
+
+    private EarthquakeAdapter mAdapter;
+
+    private static final String USGS_REQUEST_URL = "http://earthquake.usgs.gov/fdsnws/event/1/query";
+
+    private TextView mEmptyStateTextView;
+    private View loadingIndicator;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.earthquake_activity);
 
-        // Create a fake list of earthquake locations.
-//        ArrayList<Earthquake> earthquakes = new ArrayList<>();
-//        earthquakes.add(new Earthquake("5.5", "London", "January"));
-//        earthquakes.add(new Earthquake("2.4", "Khartoum", "October"));
-//        earthquakes.add(new Earthquake("4.0", "Paris", "21, December"));
-//        earthquakes.add(new Earthquake("3.0", "Khartoum", "November"));
-
-        ArrayList<Earthquake> earthquakes = QueryUtils.extractEarthquakes();
-
-        // Find a reference to the {@link ListView} in the layout
         ListView earthquakeListView = (ListView) findViewById(R.id.list);
 
-        EarthquakeAdapter adapter = new EarthquakeAdapter(this, earthquakes);
+        loadingIndicator = findViewById(R.id.loading_indicator);
+        mEmptyStateTextView = (TextView) findViewById(R.id.empty_view);
 
-        earthquakeListView.setAdapter(adapter);
-
-
-
-//        String[] mag = new String[] { "2.0", "3.2", "8.3", "4.2", "8.3", "1.2", "6.7", "5.9" };
-//        String[] loc = new String[] { "Virginia", "Long Island", "New York", "California", "Ohio", "Istanbul", "Khartoum", "Spain"};
-//        String[] time = new String[] { "12:00", "6:00", "2:23", "9:84", "10:43", "2:04", "0:00", "6:93" };
-//
-//        String[] from = new String[] { "mag", "loc", "time" };
-//        int[] to = new int[] {R.id.mag, R.id.loc, R.id.time };
-//
-//        List<HashMap<String, Object>> fillMaps = new ArrayList<HashMap<String, Object>>();
-//
-//        for(int i = 0; i < 8; i++) {
-//            HashMap<String, Object> map = new HashMap<String, Object>();
-//            map.put("mag", mag[i]);
-//            map.put("loc", loc[i]);
-//            map.put("time", time[i]);
-//            fillMaps.add(map);
-//        }
-//
-//
-//        SimpleAdapter adapter = new SimpleAdapter(this, fillMaps, R.layout.row, from, to);
-//        earthquakeListView.setAdapter(adapter);
+        earthquakeListView.setEmptyView(mEmptyStateTextView);
+        mAdapter = new EarthquakeAdapter(this, new ArrayList<Earthquake>());
 
 
+        earthquakeListView.setAdapter(mAdapter);
+
+        LoaderManager loaderManager = getLoaderManager();
+
+        ConnectivityManager connMgr = (ConnectivityManager)
+                getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo networkInfo = connMgr.getActiveNetworkInfo();
+
+        if (networkInfo != null && networkInfo.isConnected()) {
+
+            loaderManager.initLoader(EARTHQUAKE_LOADER_ID, null, this);
+        } else {
+            loadingIndicator.setVisibility(View.GONE);
+            mEmptyStateTextView.setText("No Internet Connection =(");
+        }
+
+
+
+
+
+        earthquakeListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                Earthquake currentEarthquake = mAdapter.getItem(position);
+                Uri earthquakeUri = Uri.parse(currentEarthquake.getUrl());
+                Intent websiteIntent = new Intent(Intent.ACTION_VIEW, earthquakeUri);
+                startActivity(websiteIntent);
+            }
+        });
+
+    }
+
+
+    private class EarthquakeASyncTask extends AsyncTask<String, Void, List<Earthquake>> {
+
+        @Override
+        protected List<Earthquake> doInBackground(String... urls) {
+            if(urls.length < 1 || urls[0] == null) {
+                return null;
+            }
+
+            List<Earthquake> result = QueryUtils.fetchEarthquakeData(urls[0]);
+            return result;
+        }
+
+        @Override
+        protected void onPostExecute(List<Earthquake> data) {
+            mAdapter.clear();
+
+            if(data != null && !data.isEmpty()) {
+                mAdapter.addAll(data);
+            }
+        }
+
+
+    }
+
+    @Override
+    public Loader<List<Earthquake>> onCreateLoader(int i, Bundle bundle) {
+        SharedPreferences sharedPrefs = PreferenceManager.getDefaultSharedPreferences(this);
+        String minMagnitude = sharedPrefs.getString(getString(R.string.settings_min_magnitude_key), getString(R.string.settings_min_magnitude_default));
+        Uri baseUri = Uri.parse(USGS_REQUEST_URL);
+        Uri.Builder uriBuilder = baseUri.buildUpon();
+        uriBuilder.appendQueryParameter("format", "geojson");
+        uriBuilder.appendQueryParameter("limit", "10");
+        uriBuilder.appendQueryParameter("minmag", minMagnitude);
+        uriBuilder.appendQueryParameter("orderby", "time");
+        return new EarthquakeLoader(this, uriBuilder.toString());
+    }
+
+    @Override
+    public void onLoadFinished(Loader<List<Earthquake>> loader, List<Earthquake> earthquakes) {
+        // Hide loading indicator because the data has been loaded
+
+        loadingIndicator.setVisibility(View.GONE);
+
+        // Set empty state text to display "No earthquakes found."
+        mEmptyStateTextView.setText(R.string.no_earthquakes);
+
+        // Clear the adapter of previous earthquake data
+        mAdapter.clear();
+
+        // If there is a valid list of {@link Earthquake}s, then add them to the adapter's
+        // data set. This will trigger the ListView to update.
+        if (earthquakes != null && !earthquakes.isEmpty()) {
+            mAdapter.addAll(earthquakes);
+        }
+    }
+
+    @Override
+    public void onLoaderReset(Loader<List<Earthquake>> loader) {
+        mAdapter.clear();
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.main, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        int id = item.getItemId();
+        if(id == R.id.action_settings) {
+            Intent settingsIntent = new Intent(this, SettingsActivity.class);
+            startActivity(settingsIntent);
+        }
+        return super.onOptionsItemSelected(item);
     }
 }
